@@ -202,28 +202,29 @@ ggplot(mapping = aes(x = DatetimeUTC, y = speed)) +
     theme(plot.title = element_text(face = "bold", hjust = 0.5), legend.title = element_text(face = "bold", hjust = 0.5))
 ```
  Interpret the line plot, what do the different lines for the different temporal granularities tell you?
- ##
+##if you look at the diagram of speed with different intervals, you can clearly see that increasing interval decreases speed. So you can say that it is not very sensitive to the change of speed. This can be. Of course, with a larger interval, the step length can change and the position is reassigned to the animal. Nevertheless, the times are of course not representative in the case of suspension of movement or excessive movement. The granularity depends on what you want to find out. Depending on the accuracy, you have to choose a larger or smaller scale.
+
 
 
 
 #Task5- Deriving movement parameters 2: Rolling window functions
 
 ```{r}
-series <- seq(1,20)
-series
+example <- seq(1,10)
+example
 ```
 
 ```{r}
-rollmean(series, k = 3, fill = NA, align = "left")
+rollmean(example, k = 3, fill = NA, align = "left")
 ```
 
 ```{r}
-rollmean(series, k = 4, fill = NA, align = "left")
+rollmean(example, k = 4, fill = NA, align = "left")
 ```
 
 
 ```{r}
-rollmean(series, k = 10, fill = NA, align = "left")
+rollmean(example, k = 10, fill = NA, align = "left")
 ```
 
 
