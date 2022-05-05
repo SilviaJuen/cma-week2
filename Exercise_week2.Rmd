@@ -1,0 +1,254 @@
+---
+title: "Exercise Week 2"
+author: "Silvia Juen"
+date: '2022-05-05'
+output: html_document
+---
+#Task 1- Import your Data
+```{r}
+rm(list=ls())
+library(readr)        # to import tabular data (e.g. csv)
+library(dplyr)        # to manipulate (tabular) data
+library(ggplot2)      # to visualize data
+library(sf)           # to handle spatial vector data
+library(terra)        # To handle raster data
+library(lubridate)    # To handle dates and times
+```
+
+```{r}
+wildschwein_BE <- read_delim("wildschwein_BE_2056.csv",",") # adjust path
+
+ws_sf <- st_as_sf(wildschwein_BE, coords = c("E", "N"), crs = 2056, remove = FALSE)
+```
+
+
+
+
+
+
+
+#Task 2-getting an overview
+
+```{r}
+sum(is.na(ws_sf$DatetimeUTC))
+```
+
+```{r}
+ws_sf <- group_by(ws_sf, TierID)
+
+ws_sf <- mutate(ws_sf, timelag = as.integer(difftime(lead(DatetimeUTC), DatetimeUTC, units = "secs")))
+
+# NA's ?
+summary(ws_sf$timelag)
+```
+
+```{r}
+ggplot(ws_sf, aes(x = DatetimeUTC, y = TierID)) +
+    geom_point()
+```
+
+
+```{r}
+range(ws_sf$timelag)
+```
+
+```{r}
+nrow(filter(ws_sf, timelag >= 27000))
+```
+
+```{r}
+ws_sf  %>%
+    filter(timelag <= 27000) %>%
+    ggplot(aes(x = timelag)) +
+    geom_histogram(binwidth = 60) +
+    scale_y_log10()
+```
+
+
+
+
+
+
+
+
+#Task3-Deriving movement parameters 1: Speed
+
+```{r}
+ws_sf$steplength <- sqrt(((ws_sf$E - lead(ws_sf$E))**2) + ((ws_sf$N - lead(ws_sf$N))**2)) 
+
+summary(ws_sf$steplength)
+```
+
+
+```{r}
+ws_sf$speed <- (ws_sf$steplength / ws_sf$timelag)
+
+summary(ws_sf$speed)
+```
+
+
+
+
+#Task 4- Cross-scale movement analysis
+
+```{r}
+caro <- read_delim("caro60.csv")
+```
+
+
+```{r}
+caro <- st_as_sf(caro, coords = c("E", "N"), crs = 2056, remove = FALSE)
+class(caro)
+```
+
+```{r}
+seq3 <- seq(1,nrow(caro),3)
+caro_3 <- caro %>% slice(seq3)
+```
+
+
+```{r}
+seq6 <- seq(1,nrow(caro),6)
+caro_6 <- caro %>% slice(seq6)
+```
+
+```{r}
+seq9 <- seq(1,nrow(caro),9)
+caro_9 <- caro %>% slice(seq9)
+```
+
+```{r}
+# function to derive timelag, steplenght & speed
+derivates <- function(sf_data){
+    # timelag
+    sf_data <- mutate(sf_data, timelag = as.integer(difftime(lead(sf_data$DatetimeUTC), sf_data$DatetimeUTC, units = "secs")))
+    # steplength
+    sf_data$steplength <- sqrt(((sf_data$E - lead(sf_data$E))**2) + ((sf_data$N - lead(sf_data$N))**2)) 
+    # speed
+    sf_data$speed <- (sf_data$steplength / sf_data$timelag)
+    
+    sf_data
+}
+```
+
+
+```{r}
+caro   <- derivates(caro)
+caro_3 <- derivates(caro_3)
+caro_6 <- derivates(caro_6)
+caro_9 <- derivates(caro_9)
+```
+
+
+```{r}
+# functions to produce the plots
+traj_map <- function(original, resampled, E, N){
+    plot <- ggplot() + 
+        geom_path( data = original,  mapping = aes({{E}}, {{N}}, colour = "cyan"), size = 0.8, alpha = 0.2) +
+        geom_point(data = original,  mapping = aes({{E}}, {{N}}, colour = "cyan"), alpha = 0.2) + 
+        geom_path( data = resampled, mapping = aes({{E}}, {{N}}, colour = "red"),  size = 1) +
+        geom_point(data = resampled, mapping = aes({{E}}, {{N}}, colour = "red"),  size = 1.2) +
+        theme_bw() +
+        theme(legend.justification = "right") +
+        theme(plot.title = element_text(face = "bold", hjust = 0.5), legend.title = element_text(face = "bold", hjust = 0.5))
+
+    plot
+}
+```
+
+
+```{r}
+# 3 minute interval
+traj_3 <- traj_map(caro, caro_3, E, N) + 
+    scale_colour_discrete(name = "Trajectory", labels = c("1 minute", "3 minutes")) +
+    labs(title = "1-Minute vs. 3-Minute sampling interval") 
+
+# 6 minute interval
+traj_6 <- traj_map(caro, caro_6, E, N) + 
+    scale_colour_discrete(name = "Trajectory", labels = c("1 minute", "6 minutes")) +
+    labs(title = "1-Minute vs. 6-Minute sampling interval") 
+
+# 9 minute interval
+traj_9 <- traj_map(caro, caro_9, E, N) + 
+    scale_colour_discrete(name = "Trajectory", labels = c("1 minute", "9 minutes")) +
+    labs(title = "1-Minute vs. 9-Minute sampling interval") 
+```
+
+
+```{r}
+grid.arrange(traj_3, traj_6, traj_9, ncol = 1)
+```
+
+
+```{r}
+ggplot(mapping = aes(x = DatetimeUTC, y = speed)) +
+    geom_line(data = caro, aes(color = "1 minute"),    size = 1) +
+    geom_line(data = caro_3, aes(color = "3 minutes"), size = 1) +
+    geom_line(data = caro_6, aes(color = "6 minutes"), size = 1) +
+    geom_line(data = caro_6, aes(color = "9 minutes"), size = 1) +
+    scale_colour_discrete(name = "Interval") +
+    labs(title = "Speed at different sampling intervals") +
+    theme(plot.title = element_text(face = "bold", hjust = 0.5), legend.title = element_text(face = "bold", hjust = 0.5))
+```
+
+
+
+
+#Task5- Deriving movement parameters 2: Rolling window functions
+
+```{r}
+series <- seq(1,20)
+series
+```
+
+```{r}
+rollmean(series, k = 3, fill = NA, align = "left")
+```
+
+```{r}
+rollmean(series, k = 4, fill = NA, align = "left")
+```
+
+
+```{r}
+rollmean(series, k = 10, fill = NA, align = "left")
+```
+
+
+```{r}
+caro_k3 <- rollmean(caro$speed, k = 3, fill = NA, align = "left")
+caro_k6 <- rollmean(caro$speed, k = 6, fill = NA, align = "left")
+caro_k9 <- rollmean(caro$speed, k = 9, fill = NA, align = "left")
+```
+
+```{r}
+ggplot(caro, aes(x = DatetimeUTC, y = speed)) +
+    geom_line(aes(colour = "k = 1"), size = 1) +
+    geom_line(aes(y = caro_k3, colour = "k = 3"), size = 1) +
+    geom_line(aes(y = caro_k6, colour = "k = 6"), size = 1) +
+    geom_line(aes(y = caro_k9, colour = "k = 9"), size = 1) +
+    scale_colour_discrete(name = "Length of \n rolling window") +
+    labs(title = "Speed smoothened by using 'rolling window functions'") +
+    theme(plot.title = element_text(face = "bold", hjust = 0.5), legend.title = element_text(face = "bold", hjust = 0.5))
+```
+
+```{r}
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
