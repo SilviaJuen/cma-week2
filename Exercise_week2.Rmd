@@ -5,6 +5,7 @@ date: '2022-05-05'
 output: html_document
 ---
 #Task 1- Import your Data
+##Create a new R- (or RMarkdown-) file and begin with the following lines of code (adjust the path to your csv file accordingly)
 ```{r}
 rm(list=ls())
 library(readr)        # to import tabular data (e.g. csv)
@@ -20,10 +21,8 @@ library(zoo)
 ```{r}
 wildschwein_BE <- read_delim("wildschwein_BE_2056.csv",",") # adjust path
 
-ws_sf <- st_as_sf(wildschwein_BE, coords = c("E", "N"), crs = 2056, remove = FALSE)
+wsbe_sf <- st_as_sf(wildschwein_BE, coords = c("E", "N"), crs = 2056, remove = FALSE)
 ```
-
-
 
 
 
@@ -32,66 +31,78 @@ ws_sf <- st_as_sf(wildschwein_BE, coords = c("E", "N"), crs = 2056, remove = FAL
 #Task 2-getting an overview
 
 ```{r}
-sum(is.na(ws_sf$DatetimeUTC))
+sum(is.na(wsbe_sf$DatetimeUTC))
 ```
 
 ```{r}
-ws_sf <- group_by(ws_sf, TierID)
+wsbe_sf <- group_by(wsbe_sf, TierID)
 
-ws_sf <- mutate(ws_sf, timelag = as.integer(difftime(lead(DatetimeUTC), DatetimeUTC, units = "secs")))
+wsbe_sf <- mutate(wsbe_sf, timelag = as.integer(difftime(lead(DatetimeUTC), DatetimeUTC, units = "secs")))
 
 # NA's ?
-summary(ws_sf$timelag)
+summary(wsbe_sf$timelag)
 ```
 
 ```{r}
-ggplot(ws_sf, aes(x = DatetimeUTC, y = TierID)) +
+ggplot(wsbe_sf, aes(x = DatetimeUTC, y = TierID)) +
     geom_point()
 ```
 
 
 ```{r}
-range(ws_sf$timelag)
+range(wsbe_sf$timelag)
 ```
 
 ```{r}
-nrow(filter(ws_sf, timelag >= 27000))
+nrow(filter(wsbe_sf, timelag >= 15000))
 ```
 
 ```{r}
-ws_sf  %>%
-    filter(timelag <= 27000) %>%
+wsbe_sf  %>%
+    filter(timelag <= 15000) %>%
     ggplot(aes(x = timelag)) +
     geom_histogram(binwidth = 60) +
     scale_y_log10()
 ```
 
+Now inspect your data in more detail. Try to answer the following questions:
 
-
+How many individuals were tracked?
+## There were 3 Individuals tracked.
+For how long were the individual tracked? Are there gaps?
+## Over and all, all animals were tracked at minimum of 8 months.The animal 002A was tracked of over a year and 018A was tracked longer than 016A,, which had the same staring time. In General there seem to be no gaps
+Were all individuals tracked concurrently or sequentially?
+##here we can see the animals were tracked concuurently. So it can be a good database for comparisons.
+What is the temporal sampling interval between the locations?
+## we can see in the summary of the timelag that the temporal sampling intervals are in a range of minnimum 12 to maximum 60367 seconds. In the histogram, we see bigger peaks under 5000 seconds one another near 10000 seconds. 
 
 
 
 
 
 #Task3-Deriving movement parameters 1: Speed
+##In this task we will derive some additional movement parameters from our trajectories. So far our trajectories only consist of a list of time-stamped spatial locations. So let’s calculate the animal’s steplength based on the Euclidean distance between two subsequent locations.
 
 ```{r}
-ws_sf$steplength <- sqrt(((ws_sf$E - lead(ws_sf$E))**2) + ((ws_sf$N - lead(ws_sf$N))**2)) 
+wsbe_sf$steplength <- sqrt(((wsbe_sf$E - lead(wsbe_sf$E))**2) + ((wsbe_sf$N - lead(wsbe_sf$N))**2)) 
 
-summary(ws_sf$steplength)
+summary(wsbe_sf$steplength)
 ```
-
-
 ```{r}
-ws_sf$speed <- (ws_sf$steplength / ws_sf$timelag)
+wsbe_sf$speed <- (wsbe_sf$steplength / wsbe_sf$timelag)
 
-summary(ws_sf$speed)
+summary(wsbe_sf$speed)
 ```
+What speed unit do you get?
+## I think we get a speed unit of merters per seconds.
+
+
 
 
 
 
 #Task 4- Cross-scale movement analysis
+Laube and Purves (2011) analyse animal movement across different scales (see below). In their paper, the authors suggest reducing the granularity of the data by subsetting the data to every nth element. We will do the same on a dataset that includes 200 locations of a single wild boar with a constant sampling interval of 60 seconds.
 
 ```{r}
 caro <- read_delim("caro60.csv")
@@ -120,7 +131,6 @@ caro_9 <- caro %>% slice(seq9)
 ```
 
 ```{r}
-# function to derive timelag, steplenght & speed
 derivates <- function(sf_data){
     # timelag
     sf_data <- mutate(sf_data, timelag = as.integer(difftime(lead(sf_data$DatetimeUTC), sf_data$DatetimeUTC, units = "secs")))
@@ -143,7 +153,6 @@ caro_9 <- derivates(caro_9)
 
 
 ```{r}
-# functions to produce the plots
 traj_map <- function(original, resampled, E, N){
     plot <- ggplot() + 
         geom_path( data = original,  mapping = aes({{E}}, {{N}}, colour = "cyan"), size = 0.8, alpha = 0.2) +
@@ -192,7 +201,8 @@ ggplot(mapping = aes(x = DatetimeUTC, y = speed)) +
     labs(title = "Speed at different sampling intervals") +
     theme(plot.title = element_text(face = "bold", hjust = 0.5), legend.title = element_text(face = "bold", hjust = 0.5))
 ```
-
+ Interpret the line plot, what do the different lines for the different temporal granularities tell you?
+ ##
 
 
 
